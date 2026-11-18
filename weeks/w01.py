@@ -347,6 +347,7 @@ print("Average:", (12 + 15 + 9) / 3)
                 "Line 3 contains a spelling mistake (`pritn`). Run the code: the first two lines are executed, then Python stops and shows an error message. Correct the mistake and run again.",
                 "La ligne 3 contient une faute de frappe (`pritn`). Exécute le code : les deux premières lignes s'exécutent, puis Python s'arrête et affiche un message d'erreur. Corrige la faute et relance.",
                 "في السطر 3 خطأ إملائي (`pritn`). نفّذ الكود: يُنفَّذ السطران الأولان ثم يتوقف Python ويعرض رسالة خطأ. صحّح الخطأ وأعد التشغيل."),
+            "error_ok": True,   # the error is the point of this example
             "code": '''print("Line 1: executed")
 print("Line 2: executed")
 pritn("Line 3: is there a problem?")

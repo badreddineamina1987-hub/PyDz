@@ -35,3 +35,21 @@ The default language is set by `DEFAULT_LANG` at the top of `app.py`.
 
 ## How the code runs
 Students' code runs inside their own browser with Pyodide (Python compiled to WebAssembly): nothing to install, works on phones. An internet connection is needed the first time.
+
+## Free and premium content
+- **Free:** objectives, lessons and the first example of every week, plus the playground.
+- **Premium (1 year):** the other examples, exercises and quizzes.
+
+Students unlock premium content with an **access code**. Codes are kept secret in Streamlit, never in GitHub:
+1. On share.streamlit.io, open your app → **⋮ → Settings → Secrets**.
+2. Write one line per student: the code, then the last day of access:
+```toml
+[access_codes]
+"PYDZ-7K2M-QX" = "2027-11-30"
+"PYDZ-A93F-LD" = "2027-12-15"
+```
+3. Click **Save**. The code works at once; after its date it stops working.
+
+To stop a code, delete its line.
+
+**Review mode:** at the top of `app.py`, `PREMIUM_LOCK = False` shows everything to everyone (useful while you review the content). Set it to `True` to lock the premium content. To show the price on the home page, set `PRICE_DZD` at the top of `app.py` (for example `PRICE_DZD = 2500`).

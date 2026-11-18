@@ -30,6 +30,8 @@ from syllabus import MODULE, WEEKS
 
 HERE = Path(__file__).parent
 DEFAULT_LANG = "fr"          # language shown on first visit: "fr", "en" or "ar"
+PRICE_DZD = None             # yearly premium price shown on the home page, e.g. 2500 (None = not shown)
+PREMIUM_LOCK = False         # False = everything visible (review mode) · True = exercises and quizzes need a code
 
 st.set_page_config(page_title="PyDZ · Learn Python", page_icon=str(HERE / "assets" / "pydz-icon.png"), layout="wide",
                    initial_sidebar_state="collapsed")
@@ -89,6 +91,11 @@ def init_state():
     ss.setdefault("section", "objectives")
     ss.setdefault("quiz_best", {})      # week -> (score, total)
     ss.setdefault("solved", set())      # "w1-e0", ...
+    if "access_until" not in ss:
+        ss.access_until = None
+        q = st.query_params.get("code")
+        if q:
+            try_unlock(q)
 
 
 def go(page, week=None, section="objectives"):
@@ -108,6 +115,45 @@ def week_done(n):
 
 def weeks_done():
     return sum(week_done(w["n"]) for w in WEEKS)
+
+
+# -----------------------------------------------------------------------------
+# Premium access (free: objectives, lesson, first example · premium: the rest)
+# Codes live in the app's Secrets (Streamlit Cloud: App settings -> Secrets):
+#   [access_codes]
+#   "PYDZ-7K2M-QX" = "2027-11-30"      # code = last day of access
+# -----------------------------------------------------------------------------
+def _codes():
+    try:
+        return {str(k).strip().upper(): str(v) for k, v in st.secrets["access_codes"].items()}
+    except Exception:
+        return {}
+
+
+def check_code(code):
+    """Return ("ok", end_date) / ("expired", end_date) / ("bad", None)."""
+    import datetime as _dt
+    code = (code or "").strip().upper()
+    end = _codes().get(code)
+    if not code or end is None:
+        return "bad", None
+    try:
+        end_d = _dt.date.fromisoformat(end)
+    except ValueError:
+        return "bad", None
+    return ("ok" if end_d >= _dt.date.today() else "expired"), end_d
+
+
+def has_access():
+    return (not PREMIUM_LOCK) or bool(st.session_state.get("access_until"))
+
+
+def try_unlock(code):
+    status, end = check_code(code)
+    if status == "ok":
+        st.session_state.access_until = end.isoformat()
+        st.query_params["code"] = code.strip().upper()   # stays in the link: a refresh keeps access
+    return status, end
 
 
 def next_week():
@@ -265,6 +311,30 @@ div[class*="st-key-task_"] { background: var(--osoft); border: 1px solid #ffd9bd
 .soon-box { background: #fff; border: 2px dashed #cfdbec; border-radius: 22px; padding: 26px; }
 .soon-box li { margin-bottom: 8px; }
 
+/* ---------- premium ---------- */
+.lockbox { display: flex; gap: 18px; align-items: flex-start; background: linear-gradient(135deg, #fff 0%, #fff6ee 100%);
+    border: 1px solid #ffd9bd; border-radius: 22px; padding: 22px 26px; margin-bottom: 8px; }
+.lockbox .lk { flex: 0 0 54px; height: 54px; border-radius: 16px; background: var(--orange); color: #fff; font-size: 1.6rem;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px rgba(255,122,26,.3); }
+.lockbox h3 { margin: 10px 0 4px 0; }
+.lockbox p { margin: 4px 0; color: #33445e; }
+.lockbox ul { margin: 6px 0 0 0; }
+.offer { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .offer { grid-template-columns: 1fr; } }
+.plan { background: #fff; border: 1px solid var(--line); border-radius: 24px; padding: 24px 26px; }
+.plan.pro { background: linear-gradient(140deg, #0b3a75 0%, #1e5ba8 100%); color: #fff; border: 0; box-shadow: 0 18px 40px rgba(11,58,117,.25); }
+.plan h3 { margin: 0 0 4px 0; font-size: 1.5rem; }
+.plan.pro h3 { color: #fff !important; }
+.plan .per { color: var(--muted); font-weight: 600; }
+.plan.pro .per { color: #ffd2b0; }
+.plan ul { list-style: none; padding: 0; margin: 14px 0 0 0; }
+.plan li { padding: 7px 0; display: flex; gap: 10px; }
+.plan li::before { content: "✓"; font-weight: 800; color: var(--blue); }
+.plan.pro li::before { color: var(--orange); }
+.build ul { list-style: none; padding: 0; }
+.build li { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.build li b { color: var(--orange-d); }
+
 /* ---------- misc ---------- */
 .kv { display: grid; grid-template-columns: minmax(150px, 34%) 1fr; gap: 0; }
 .kv div { padding: 10px 4px; border-bottom: 1px solid var(--line); }
@@ -388,6 +458,32 @@ def week_grid(lang, key_prefix="wk_"):
 # -----------------------------------------------------------------------------
 # PAGE: home
 # -----------------------------------------------------------------------------
+DEMO_CODE = '''# PyDZ · final project preview: sales report of a small shop
+months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun"]
+sales = [182000, 165500, 210300, 198750, 240100, 226400]   # DZD
+
+def average(values):
+    return sum(values) / len(values)
+
+total = sum(sales)
+best = months[sales.index(max(sales))]
+worst = months[sales.index(min(sales))]
+
+print("=" * 34)
+print("   SALES REPORT · FIRST HALF")
+print("=" * 34)
+for month, amount in zip(months, sales):
+    bar = "#" * (amount // 20000)
+    print(f"{month}  {amount:>8,} DZD  {bar}")
+print("-" * 34)
+print(f"Total     : {total:,} DZD")
+print(f"Average   : {average(sales):,.0f} DZD")
+print(f"Best month: {best}   Worst month: {worst}")
+growth = (sales[-1] - sales[0]) / sales[0] * 100
+print(f"Growth Jan -> Jun: {growth:.1f} %")
+'''
+
+
 def page_home(lang):
     nw = next_week()
     done = weeks_done()
@@ -428,6 +524,22 @@ def page_home(lang):
     section_title(UI["journey_tag"][lang], UI["journey_title"][lang])
     week_grid(lang)
 
+    section_title(UI["build_tag"][lang], UI["build_title"][lang], orange=True)
+    d1, d2 = st.columns([1, 1.5], gap="large")
+    with d1:
+        pts = "".join(f"<li><b>→</b> {esc(p)}</li>" for p in UI["build_points"][lang])
+        st.markdown(f'<div class="build"><p style="font-size:1.05rem;line-height:1.65">{md_inline(UI["build_text"][lang])}</p>'
+                    f'<ul>{pts}</ul></div>', unsafe_allow_html=True)
+    with d2:
+        code_runner(DEMO_CODE, runner_texts(lang), lang == "ar", uid="home-demo", max_lines=30)
+
+    section_title(UI["offer_tag"][lang], UI["offer_title"][lang])
+    free = "".join(f"<li>{esc(x)}</li>" for x in UI["free_list"][lang])
+    pro = "".join(f"<li>{esc(x)}</li>" for x in UI["premium_list"][lang])
+    st.markdown(f'<div class="offer"><div class="plan"><h3>{esc(UI["free_name"][lang])}</h3><span class="per">0 DZD</span><ul>{free}</ul></div>'
+                f'<div class="plan pro"><h3>{esc(UI["premium"][lang])} ✦</h3><span class="per">{(f"{PRICE_DZD:,}".replace(",", " ") + " DZD · ") if PRICE_DZD else ""}{esc(UI["per_year"][lang])}</span>'
+                f'<ul>{pro}</ul></div></div>', unsafe_allow_html=True)
+
     section_title(UI["how_tag"][lang], UI["how_title"][lang], orange=True)
     steps = "".join(f'<div class="step"><div class="n">{i}</div><b>{esc(a)}</b><span>{esc(b)}</span></div>'
                     for i, (a, b) in enumerate(UI["how_steps"][lang], 1))
@@ -456,12 +568,38 @@ def render_lesson(c, lang):
         st.markdown(T(c["lesson"], lang))
 
 
+def render_locked(lang, items_html=""):
+    """Card shown instead of premium content, with the access-code form."""
+    st.markdown(
+        f'<div class="lockbox"><div class="lk">🔒</div><div><span class="tag o">{esc(UI["premium"][lang])}</span>'
+        f'<h3>{esc(UI["lock_title"][lang])}</h3><p>{esc(UI["lock_text"][lang])}</p>{items_html}</div></div>',
+        unsafe_allow_html=True)
+    with st.form(f"unlock_{st.session_state.page}_{st.session_state.week}_{len(items_html)}", border=False):
+        c1, c2 = st.columns([3, 1.3], vertical_alignment="bottom")
+        code = c1.text_input(UI["code_label"][lang], placeholder="PYDZ-XXXX-XX")
+        sent = c2.form_submit_button(UI["code_btn"][lang], type="primary", use_container_width=True)
+    if sent:
+        status, end = try_unlock(code)
+        if status == "ok":
+            st.rerun()
+        elif status == "expired":
+            st.error(UI["code_expired"][lang].format(d=end.isoformat()))
+        else:
+            st.error(UI["code_bad"][lang])
+    st.caption(f'{UI["how_to_buy"][lang]} {AUTHOR["email"]}')
+
+
 def render_examples(c, n, lang):
     exs = c["examples"]
-    labels = [f'{UI["example"][lang]} {i + 1} · {T(e["title"], lang)}' for i, e in enumerate(exs)]
+    locked = not has_access()
+    labels = [("🔒 " if locked and i > 0 else "") + f'{UI["example"][lang]} {i + 1} · {T(e["title"], lang)}'
+              for i, e in enumerate(exs)]
     i = st.pills(UI["example"][lang], list(range(len(exs))), format_func=lambda k: labels[k], default=0,
                  key=f"ex_pick_{n}", label_visibility="collapsed")
     i = 0 if i is None else i
+    if locked and i > 0:
+        render_locked(lang, f'<p><b>{esc(UI["lock_has_more_ex"][lang].format(n=len(exs) - 1))}</b></p>')
+        return
     e = exs[i]
     st.markdown(f"#### {T(e['title'], lang)}")
     st.markdown(T(e["explain"], lang))
@@ -471,6 +609,10 @@ def render_examples(c, n, lang):
 def render_exercises(c, n, lang):
     exs = c["exercises"]
     ss = st.session_state
+    if not has_access():
+        items = "".join(f"<li>{esc(T(e['title'], lang))}</li>" for e in exs)
+        render_locked(lang, f'<p><b>{esc(UI["lock_has_ex"][lang].format(n=len(exs)))}</b></p><ul>{items}</ul>')
+        return
     labels = [("✅ " if f"w{n}-e{i}" in ss.solved else "") + f'{UI["exercise"][lang]} {i + 1} · {T(e["title"], lang)}'
               for i, e in enumerate(exs)]
     i = st.pills(UI["exercise"][lang], list(range(len(exs))), format_func=lambda k: labels[k], default=0,
@@ -499,6 +641,9 @@ def render_exercises(c, n, lang):
 
 def render_quiz(c, n, lang):
     qs = c["quiz"]
+    if not has_access():
+        render_locked(lang, f'<p><b>{esc(UI["lock_has_quiz"][lang].format(n=len(qs)))}</b></p>')
+        return
     st.caption(UI["quiz_intro"][lang] + " " + UI["pass_note"][lang])
     with st.form(f"quiz_{n}"):
         answers = []
@@ -550,7 +695,10 @@ def page_week(lang):
         with st.container(key="secnav"):
             icons = {"objectives": "🎯", "lesson": "📖", "examples": "💻", "exercises": "✏️", "quiz": "📝"}
             sec = st.segmented_control("sec", SECTIONS, key=key, label_visibility="collapsed",
-                                       format_func=lambda s: f"{icons[s]} {UI['sec_' + s][lang]}")
+                                       format_func=lambda s: f"{icons[s]} {UI['sec_' + s][lang]}"
+                                       + (" 🔒" if s in ("exercises", "quiz") and not has_access() else ""))
+        if ss.get("access_until"):
+            st.caption("✅ " + UI["code_ok"][lang].format(d=ss.access_until))
         sec = sec or "objectives"
         if sec == "objectives":
             render_objectives(c, lang)
